@@ -1,5 +1,197 @@
 <!DOCTYPE html>
+<html lang="en"><!DOCTYPE html>
 <html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Easy Search</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header-container">
+            <h1>Indian Agrochemical Registration Committee Updates</h1>
+        </div>
+
+        <div class="search-container">
+            <form id="fetchForm">
+                <div class="form-group">
+                    <label for="companyName">Company Name</label>
+                    <input type="text" id="companyName" placeholder="Enter Company Name">
+                </div>
+                <div class="form-group">
+                    <label for="product">Product Name</label>
+                    <input type="text" id="product" placeholder="Enter Product Name">
+                </div>
+                <div class="form-group">
+                    <label for="dateFrom">Date From</label>
+                    <input type="date" id="dateFrom" title="Date From" />
+                </div>
+                <div class="form-group">
+                    <label for="dateTo">Date To</label>
+                    <input type="date" id="dateTo" title="Date To" />
+                </div>
+                <div class="form-actions">
+                    <button type="submit">Click to search</button>
+                    <button type="button" id="resetBtn">Reset Filters</button>
+                </div>
+            </form>
+        </div>
+
+        <div id="output"></div>
+    </div>
+
+    <div id="popup" class="popup">
+        <div class="popup-content" id="popup-content"></div>
+    </div>
+
+    <script>
+        const fetchForm = document.getElementById('fetchForm');
+        const output = document.getElementById('output');
+        const popup = document.getElementById('popup');
+        const popupContent = document.getElementById('popup-content');
+        const resetBtn = document.getElementById('resetBtn');
+        let groupedData = {};
+
+        resetBtn.addEventListener('click', () => {
+            fetchForm.reset();
+            output.innerHTML = '';
+            groupedData = {};
+        });
+
+        fetchForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            output.innerHTML = `<p class="loading-text">Loading...</p>`;
+            const body = {
+                companyName: document.getElementById('companyName').value,
+                product: document.getElementById('product').value,
+                dateFrom: document.getElementById('dateFrom').value,
+                dateTo: document.getElementById('dateTo').value,
+            };
+            try {
+                const res = await fetch('/fetch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                if (!res.ok) {
+                    const error = await res.text();
+                    output.innerHTML = `<p class="error-text">${error}</p>`;
+                    return;
+                }
+                const data = await res.json();
+                if (data.length === 0) {
+                    output.innerHTML = '<p class="error-text">❌ No matching records found</p>';
+                    return;
+                }
+                groupedData = {};
+                data.forEach(row => {
+                    if (!groupedData[row.sheet]) groupedData[row.sheet] = [];
+                    groupedData[row.sheet].push(row);
+                });
+                let html = `
+                    <div class="results-header">
+                        <h3>Search Results Summary</h3>
+                        <p>Total Records Found: <strong>${data.length}</strong></p>
+                    </div>
+                    <div class="grid-container">`;
+                const sheetEntries = Object.entries(groupedData);
+                const itemsPerRow = 3;
+                for (let i = 0; i < sheetEntries.length; i += itemsPerRow) {
+                    html += `<div class="grid-row">`;
+                    const rowItems = sheetEntries.slice(i, i + itemsPerRow);
+                    rowItems.forEach(([sheetName, rows]) => {
+                        html += `
+                            <div class="grid-item">
+                                <strong>${sheetName}</strong>
+                                <p class="record-count">(${rows.length} record${rows.length > 1 ? 's' : ''})</p>
+                                <button class="show-records-btn" onclick="showRecords('${sheetName.replace(/'/g, "\\'")}')">+ Show Records</button>
+                            </div>`;
+                    });
+                    for (let j = rowItems.length; j < itemsPerRow; j++) {
+                        html += `<div class="grid-item"></div>`;
+                    }
+                    html += `</div>`;
+                    if (i + itemsPerRow < sheetEntries.length) {
+                        html += `<hr class="row-separator">`;
+                    }
+                }
+                html += `</div><div id="table-display-area"></div>`;
+                output.innerHTML = html;
+            } catch (err) {
+                 output.innerHTML = `<p class="error-text">❌ Could not connect to server. Please check your connection and try again.</p>`;
+            }
+        });
+
+        function showRecords(sheetName) {
+    const tableArea = document.getElementById('table-display-area');
+    const rows = groupedData[sheetName];
+
+    if (!rows || rows.length === 0) {
+        tableArea.innerHTML = '<p class="error-text">No records to display.</p>';
+        return;
+    }
+    
+    const headers = Object.keys(rows[0]).filter(k => k !== 'sheet');
+
+    const tableBody = rows.map(row => {
+        const cells = headers.map(header => {
+            const value = row[header] || '';
+            
+            // 💡 THIS IS THE CORRECTED LINE
+            // It checks for 'RC_Number' first, and if that's missing, it checks for 'RC Number'.
+            const rcNum = row['RC_Number'] || row['RC Number'];
+            
+            if (header === 'Page No' && rcNum && value) {
+                return `<td><a href="/pdf/${rcNum}#page=${value}" target="_blank" title="Open PDF at page ${value}">${value}</a></td>`;
+            }
+            
+            // For all other cells, display the value normally
+            const text = String(value);
+            if (text.length > 100) {
+                return `<td>
+                            ${text.substring(0, 100)}...
+                            <span class="read-more" onclick="showPopup(\`${text.replace(/`/g, '\\`')}\`)">Read more</span>
+                        </td>`;
+            }
+            return `<td>${text}</td>`;
+        }).join('');
+        return `<tr>${cells}</tr>`;
+    }).join('');
+    
+    const tableHtml = `
+        <div class="table-container">
+            <h4>Records for: ${sheetName} <button class="hide-btn" onclick="hideRecords()">Close</button></h4>
+            <div class="table-scroll">
+                <table>
+                    <thead>
+                        <tr>${headers.map(k => `<th>${k}</th>`).join('')}</tr>
+                    </thead>
+                    <tbody>${tableBody}</tbody>
+                </table>
+            </div>
+        </div>`;
+        
+    tableArea.innerHTML = tableHtml;
+}
+
+        function hideRecords() {
+            document.getElementById('table-display-area').innerHTML = '';
+        }
+
+        function showPopup(content) {
+            popup.style.display = 'flex';
+            popupContent.textContent = content;
+        }
+
+        popup.onclick = (e) => {
+            if (e.target === popup) {
+                popup.style.display = 'none';
+            }
+        };
+    </script>
+</body>
+</html>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
