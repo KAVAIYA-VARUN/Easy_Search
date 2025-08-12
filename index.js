@@ -7,7 +7,6 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
-// Serve static files from the 'public' folder
 app.use(express.static('public'));
 
 // --- CONFIGURATION ---
@@ -16,7 +15,7 @@ const uri = process.env.MONGO_URI;
 // -------------------
 
 const client = new MongoClient(uri);
-let db; // This variable will hold our persistent database connection
+let db; // This variable will hold our MAIN database connection
 
 /**
  * Connects to MongoDB once and then starts the Express server.
@@ -25,6 +24,7 @@ async function startServer() {
     try {
         await client.connect();
         console.log("✅ Successfully connected to MongoDB.");
+        // This 'db' variable is for the main data, NOT the PDFs.
         db = client.db(DB_NAME);
         app.listen(3000, () => {
             console.log(`🚀 Server running at http://localhost:3000`);
@@ -37,7 +37,7 @@ async function startServer() {
 
 // --- ROUTES ---
 
-// Fetches the data records based on search criteria
+// The /fetch route is correct and remains unchanged.
 app.post('/fetch', async (req, res) => {
     try {
         const { companyName, product, dateFrom, dateTo } = req.body;
@@ -66,14 +66,11 @@ app.post('/fetch', async (req, res) => {
         }
         const isDateFilterActive = fromDate || toDate;
 
-        // --- 💡 THIS IS THE CORRECTED LOGIC ---
-        // The line filtering 'List_of_RC' has been removed.
         const collectionsToSearch = collections.filter(c =>
             !c.name.startsWith('system.') &&
             !c.name.includes('.chunks') &&
             !c.name.includes('.files')
         );
-        // --- END OF CORRECTION ---
 
         for (const { name } of collectionsToSearch) {
             const collection = db.collection(name);
@@ -124,24 +121,41 @@ app.post('/fetch', async (req, res) => {
     }
 });
 
-// Streams the correct PDF based on the RC Number
+// --- 💡 THIS IS THE CORRECTED PDF ROUTE ---
 app.get('/pdf/:rcNum', async (req, res) => {
     try {
-        const { rcNum } = req.params;
+        let { rcNum } = req.params;
         if (!rcNum) {
             return res.status(400).send('RC Number is required.');
         }
 
-        const bucket = new GridFSBucket(db, { bucketName: 'pdfFiles' });
-        const downloadStream = bucket.openDownloadStreamByName(`${rcNum}.pdf`);
+        // Clean the number from the URL, just in case (e.g. "463rd" becomes "463")
+        rcNum = String(rcNum).replace(/[^0-9]/g, "");
+
+        // Use the single client to switch to the database named after the RC number
+        const pdfDb = client.db(rcNum);
+        const bucket = new GridFSBucket(pdfDb, { bucketName: 'pdfFiles' });
+
+        // Find the first (and likely only) file in that specific database
+        const files = await bucket.find().limit(1).toArray();
+
+        if (!files || files.length === 0) {
+            return res.status(404).send(`No PDF found in database "${rcNum}"`);
+        }
+        
+        const file = files[0];
+
+        res.setHeader('Content-Type', 'application/pdf');
+        // Use the actual filename from the database for the download
+        res.setHeader('Content-Disposition', `inline; filename="${file.filename}"`);
+
+        const downloadStream = bucket.openDownloadStream(file._id);
         
         downloadStream.on('error', (streamErr) => {
             console.error('PDF Stream Error:', streamErr);
-            res.status(404).send(`❌ No PDF found for RC Number: ${rcNum}`);
+            res.status(500).send('Error streaming PDF file.');
         });
 
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `inline; filename="${rcNum}.pdf"`);
         downloadStream.pipe(res);
 
     } catch (err) {
@@ -149,6 +163,7 @@ app.get('/pdf/:rcNum', async (req, res) => {
         res.status(500).send('❌ An error occurred while fetching the PDF.');
     }
 });
+// --- END OF CORRECTION ---
 
 // --- START THE APPLICATION ---
 startServer();
