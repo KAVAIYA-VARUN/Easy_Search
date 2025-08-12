@@ -123,56 +123,54 @@
         });
 
         function showRecords(sheetName) {
-    const tableArea = document.getElementById('table-display-area');
-    const rows = groupedData[sheetName];
+            const tableArea = document.getElementById('table-display-area');
+            const rows = groupedData[sheetName];
 
-    if (!rows || rows.length === 0) {
-        tableArea.innerHTML = '<p class="error-text">No records to display.</p>';
-        return;
-    }
-    
-    const headers = Object.keys(rows[0]).filter(k => k !== 'sheet');
+            if (!rows || rows.length === 0) {
+                tableArea.innerHTML = '<p class="error-text">No records to display.</p>';
+                return;
+            }
 
-    const tableBody = rows.map(row => {
-        const cells = headers.map(header => {
-            const value = row[header] || '';
+            const headers = Object.keys(rows[0]).filter(k => k !== 'sheet');
+
+            const tableBody = rows.map(row => {
+                const cells = headers.map(header => {
+                    const value = row[header] || '';
+                    const rcNum = row['RC_Number'] || row['RC Number'];
+                    
+                    if (header === 'Page No' && rcNum && value) {
+                        return `<td><a href="/pdf/${rcNum}#page=${value}" target="_blank" title="Open PDF at page ${value}">${value}</a></td>`;
+                    }
+                    
+                    const text = String(value);
+                    if (text.length > 100) {
+                        return `<td>
+                                    ${text.substring(0, 100)}...
+                                    <span class="read-more" onclick="showPopup(\`${text.replace(/`/g, '\\`')}\`)">Read more</span>
+                                </td>`;
+                    }
+                    return `<td>${text}</td>`;
+                }).join('');
+                return `<tr>${cells}</tr>`;
+            }).join('');
             
-            // 💡 THIS IS THE CORRECTED LINE
-            // It checks for 'RC_Number' first, and if that's missing, it checks for 'RC Number'.
-            const rcNum = row['RC_Number'] || row['RC Number'];
-            
-            if (header === 'Page No' && rcNum && value) {
-                return `<td><a href="/pdf/${rcNum}#page=${value}" target="_blank" title="Open PDF at page ${value}">${value}</a></td>`;
-            }
-            
-            // For all other cells, display the value normally
-            const text = String(value);
-            if (text.length > 100) {
-                return `<td>
-                            ${text.substring(0, 100)}...
-                            <span class="read-more" onclick="showPopup(\`${text.replace(/`/g, '\\`')}\`)">Read more</span>
-                        </td>`;
-            }
-            return `<td>${text}</td>`;
-        }).join('');
-        return `<tr>${cells}</tr>`;
-    }).join('');
-    
-    const tableHtml = `
-        <div class="table-container">
-            <h4>Records for: ${sheetName} <button class="hide-btn" onclick="hideRecords()">Close</button></h4>
-            <div class="table-scroll">
-                <table>
-                    <thead>
-                        <tr>${headers.map(k => `<th>${k}</th>`).join('')}</tr>
-                    </thead>
-                    <tbody>${tableBody}</tbody>
-                </table>
-            </div>
-        </div>`;
-        
-    tableArea.innerHTML = tableHtml;
-}
+            // 💡 The <h4> tag below now contains a <span> around the text
+            const tableHtml = `
+                <div class="table-container">
+                    <h4><span>Records for: ${sheetName}</span> <button class="hide-btn" onclick="hideRecords()">Close</button></h4>
+                    <p class="mobile-scroll-hint">➡️ Swipe table to see all columns ➡️</p>
+                    <div class="table-scroll">
+                        <table>
+                            <thead>
+                                <tr>${headers.map(k => `<th>${k}</th>`).join('')}</tr>
+                            </thead>
+                            <tbody>${tableBody}</tbody>
+                        </table>
+                    </div>
+                </div>`;
+                
+            tableArea.innerHTML = tableHtml;
+        }
 
         function hideRecords() {
             document.getElementById('table-display-area').innerHTML = '';
