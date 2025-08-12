@@ -195,14 +195,21 @@ button[type="submit"]:hover {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 15px; /* Added gap for spacing */
     border-bottom: 2px solid #dee2e6;
     padding-bottom: 10px;
+}
+
+/* 💡 New rule to handle long text */
+.table-container h4 span {
+    word-break: break-all;
 }
     
 .hide-btn {
     background-color: #dc3545;
     font-size: 0.9rem;
     padding: 8px 15px;
+    flex-shrink: 0; /* Prevents the button from shrinking */
 }
     
 .hide-btn:hover {
@@ -232,6 +239,7 @@ th, td {
     padding: 12px;
     vertical-align: top;
     text-align: left;
+    white-space: nowrap;
 }
 
 tbody tr:nth-child(even) {
@@ -287,4 +295,70 @@ td a:hover {
     font-style: italic;
     font-size: 0.9em;
     margin-left: 5px;
+}
+
+.mobile-scroll-hint {
+    display: none;
+}
+
+
+/*
+==============================================
+=== MOBILE STYLES (For screens under 768px) ===
+==============================================
+*/
+@media (max-width: 768px) {
+    body {
+        padding: 15px;
+    }
+
+    .header-container h1 {
+        font-size: 1.8rem;
+    }
+
+    .search-container, #output {
+        padding: 15px;
+    }
+
+    #fetchForm {
+        grid-template-columns: 1fr;
+    }
+
+    .form-actions {
+        flex-direction: column;
+        grid-column: auto;
+    }
+
+    .form-actions button {
+        width: 100%;
+    }
+
+    .grid-row {
+        flex-direction: column;
+    }
+
+    .grid-item {
+        border-right: none;
+        border-bottom: 1px solid #e0e0e0;
+    }
+
+    .grid-item:last-child {
+        border-bottom: none;
+    }
+    
+    .table-container h4 {
+        font-size: 1.25rem;
+    }
+
+    .mobile-scroll-hint {
+        display: block;
+        padding: 10px;
+        background-color: #e9ecef;
+        border-radius: 5px;
+        text-align: center;
+        font-size: 0.9rem;
+        font-style: italic;
+        margin-bottom: 15px;
+        color: #555;
+    }
 }
