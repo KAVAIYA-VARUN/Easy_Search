@@ -51,6 +51,7 @@ body {
     margin-bottom: 8px;
     font-size: 0.9rem;
     color: #333;
+    font-weight: bold;
 }
 
 input[type="text"],
@@ -156,7 +157,7 @@ button[type="submit"]:hover {
     flex-direction: column;
     gap: 10px;
     background-color: #f0f7ff;
-    border-left: 5px solid #0d6efd;
+    border-left: 5px solid #198754;
     border-radius: 5px;
     transition: transform 0.2s, box-shadow 0.2s;
 }
