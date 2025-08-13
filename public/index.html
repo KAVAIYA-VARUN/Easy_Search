@@ -51,7 +51,7 @@
         const popupContent = document.getElementById('popup-content');
         const resetBtn = document.getElementById('resetBtn');
         let groupedData = {};
-        let rcDateMap = {}; // This will store our date lookup map
+        let rcDateMap = {};
 
         resetBtn.addEventListener('click', () => {
             fetchForm.reset();
@@ -81,7 +81,6 @@
                     return;
                 }
                 
-                // CORRECTED: Handle the object response from the server
                 const responsePayload = await res.json();
                 const data = responsePayload.results;
                 rcDateMap = responsePayload.rcDateMap;
@@ -91,6 +90,26 @@
                     return;
                 }
                 
+                // --- 💡 NEW SORTING LOGIC ADDED HERE ---
+                data.sort((a, b) => {
+                    // Helper function to get and clean the RC number from a row
+                    const getCleanRcNum = (row) => {
+                        const rawRc = row.RC_Number || row['RC Number'];
+                        if (!rawRc) {
+                            return 0; // Treat rows without an RC number as the lowest value
+                        }
+                        // Clean the string (e.g., "463rd" -> "463") and parse to an integer
+                        return parseInt(String(rawRc).replace(/[^0-9]/g, ""), 10) || 0;
+                    };
+
+                    const rcNumA = getCleanRcNum(a);
+                    const rcNumB = getCleanRcNum(b);
+
+                    // Sort in descending order (highest number first)
+                    return rcNumB - rcNumA;
+                });
+                // --- END OF NEW SORTING LOGIC ---
+
                 groupedData = {};
                 data.forEach(row => {
                     if (!groupedData[row.sheet]) groupedData[row.sheet] = [];
@@ -99,7 +118,7 @@
                 
                 let html = `
                     <div class="results-header">
-                        <h3>Search Results:</h3>
+                        <h3>Search Results</h3>
                         <p>Total Records Found: <strong>${data.length}</strong></p>
                     </div>
                     <div class="grid-container">`;
@@ -129,7 +148,6 @@
             }
         });
 
-        // CORRECTED: Updated function to display the date
         function showRecords(sheetName) {
             const tableArea = document.getElementById('table-display-area');
             const rows = groupedData[sheetName];
@@ -144,20 +162,26 @@
             const tableBody = rows.map(row => {
                 const cells = headers.map(header => {
                     const value = row[header] || '';
-                    const rcNumForPdfLink = row['RC_Number'] || row['RC Number'];
+                    const rcNumRaw = row['RC_Number'] || row['RC Number'];
 
-                    if (header === 'Page No' && rcNumForPdfLink && value) {
-                        return `<td><a href="/pdf/${rcNumForPdfLink}#page=${value}" target="_blank" title="Open PDF at page ${value}">${value}</a></td>`;
+                    if (header === 'Page No' && rcNumRaw && value) {
+                        const rcNumClean = String(rcNumRaw).replace(/[^0-9]/g, "");
+                        return `<td><a href="/pdf/${rcNumClean}#page=${value}" target="_blank" title="Open PDF at page ${value}">${value}</a></td>`;
                     }
 
                     let displayValue = String(value);
 
-                    // If it's the RC Number column, format it with the date
                     if ((header === 'RC_Number' || header === 'RC Number') && value) {
-                        const rcNum = String(value).trim();
-                        const meetingDate = rcDateMap[rcNum];
+                        // We use the raw value for display, not the cleaned one
+                        const rcNumForDisplay = String(rcNumRaw).trim();
+                        // We use the cleaned number for the map lookup
+                        const rcNumForLookup = String(rcNumRaw).replace(/[^0-9]/g, "");
+                        const meetingDate = rcDateMap[rcNumForLookup];
+                        
                         if (meetingDate) {
-                            displayValue = `${rcNum} (${meetingDate})`;
+                            displayValue = `${rcNumForDisplay} (${meetingDate})`;
+                        } else {
+                            displayValue = rcNumForDisplay;
                         }
                     }
                     
@@ -179,7 +203,6 @@
                         <table>
                             <thead>
                                 <tr>${headers.map(k => {
-                                    // Change the column header text
                                     if (k === 'RC_Number' || k === 'RC Number') {
                                         return `<th>RC Number (Date)</th>`;
                                     }
